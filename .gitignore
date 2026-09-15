@@ -1,0 +1,6 @@
+src/NotificationService.Core/bin/
+src/NotificationService.Core/obj/
+src/NotificationService.Infrastructure/bin/
+src/NotificationService.Infrastructure/obj/
+src/NotificationService.Web/bin/
+src/NotificationService.Web/obj/
