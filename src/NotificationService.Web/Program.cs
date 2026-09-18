@@ -18,7 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<NotificationDbContext>(options =>
 {
-    options.UseSqlite("Data Source=notification_service.db");
+    var connectionString = builder.Configuration.GetConnectionString("NotificationService")
+        ?? "Data Source=notification_service.db";
+    options.UseSqlite(connectionString);
 });
 
 builder.Services.AddHttpClient();

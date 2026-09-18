@@ -45,6 +45,42 @@ public class ChannelsController : ControllerBase
         return Ok(channels);
     }
 
+    [HttpGet("types")]
+    public async Task<IActionResult> GetTypes()
+    {
+        var types = await _dbContext.ChannelTypes
+            .AsNoTracking()
+            .Where(type => type.Enabled)
+            .OrderBy(type => type.Name)
+            .Select(type => new { type.Id, type.Code, type.Name })
+            .ToListAsync();
+
+        return Ok(types);
+    }
+
+    [HttpGet("types/{typeId}/definitions")]
+    public async Task<IActionResult> GetDefinitions(int typeId)
+    {
+        var typeExists = await _dbContext.ChannelTypes.AnyAsync(type => type.Id == typeId && type.Enabled);
+        if (!typeExists) return NotFound();
+
+        var definitions = await _dbContext.SettingDefinitions
+            .AsNoTracking()
+            .Where(definition => definition.ChannelTypeId == typeId && definition.Enabled)
+            .OrderBy(definition => definition.Id)
+            .ToListAsync();
+
+        return Ok(definitions.Select(definition => new
+        {
+            definition.Code,
+            definition.Name,
+            DataType = definition.DataType.ToString().ToUpperInvariant(),
+            definition.IsRequired,
+            definition.IsSensitive,
+            definition.DefaultValue
+        }));
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {

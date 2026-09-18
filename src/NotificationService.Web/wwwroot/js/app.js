@@ -1,5 +1,6 @@
 // Notification Platform Frontend App Engine
 let currentTab = 'dashboard';
+let currentChannelModalId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
@@ -345,13 +346,15 @@ async function loadChannelsCards() {
             <div>
                 <div class="item-card-header">
                     <span class="item-card-title">${escapeHtml(c.name)}</span>
-                    <span class="badge ${c.type === 1 ? 'badge-info' : 'badge-success'}">${c.type === 1 ? 'Email (SMTP)' : 'Webhook'}</span>
+                    <span class="badge badge-info">${escapeHtml(getChannelTypeName(c.type, c.channelTypeId))}</span>
                 </div>
-                <div class="item-card-body">
-                    <code>${escapeHtml(c.configJson)}</code>
+                <div class="channel-card-meta">
+                    <span><i class="fa-solid fa-sliders"></i> Configuración relacional</span>
+                    <span class="${c.isActive ? 'text-success' : 'text-muted'}"><i class="fa-solid fa-circle"></i> ${c.isActive ? 'Activo' : 'Inactivo'}</span>
                 </div>
             </div>
             <div class="item-card-actions">
+                <button class="btn btn-sm btn-secondary" onclick="openChannelModal(${c.id})"><i class="fa-solid fa-gear"></i> Configurar</button>
                 <button class="btn btn-sm btn-primary" onclick="testChannelModal(${c.id})"><i class="fa-solid fa-paper-plane"></i> Probar</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteChannel(${c.id})"><i class="fa-solid fa-trash"></i></button>
             </div>
@@ -359,37 +362,109 @@ async function loadChannelsCards() {
     `).join('');
 }
 
-function openChannelModal() {
+async function openChannelModal(channelId = null) {
+    currentChannelModalId = channelId;
+    const types = await (await fetch('/api/channels/types')).json();
+    const channel = channelId ? await (await fetch(`/api/channels/${channelId}`)).json() : null;
+    const selectedTypeId = channel?.channelTypeId || types[0]?.id;
+    const definitions = selectedTypeId ? await (await fetch(`/api/channels/types/${selectedTypeId}/definitions`)).json() : [];
+    const currentSettings = Object.fromEntries((channel?.settings || []).map(setting => [setting.code, setting]));
+
     const html = `
         <form>
             <div class="form-group">
                 <label>Nombre del Canal *</label>
-                <input type="text" id="c-name" class="form-control" required placeholder="ej. Servidor Email Corporativo">
+                <input type="text" id="c-name" class="form-control" required value="${escapeHtml(channel?.name || '')}" placeholder="ej. Servidor Email Corporativo">
             </div>
             <div class="form-group">
                 <label>Tipo de Canal *</label>
-                <select id="c-type" class="form-control">
-                    <option value="1">Email (SMTP / MailKit)</option>
-                    <option value="2">Webhook (HTTP POST/PUT)</option>
+                <select id="c-type" class="form-control" onchange="loadChannelDefinitionEditor()" ${channelId ? 'disabled' : ''}>
+                    ${types.map(type => `<option value="${type.id}" ${type.id === selectedTypeId ? 'selected' : ''}>${escapeHtml(type.name)} (${escapeHtml(type.code)})</option>`).join('')}
                 </select>
             </div>
-            <div class="form-group">
-                <label>Configuración JSON *</label>
-                <textarea id="c-config" class="form-control">{"Host":"smtp.gmail.com","Port":587,"Username":"demo@gmail.com","Password":"demo123","FromAddress":"no-reply@empresa.com","FromName":"Sistema Notificaciones"}</textarea>
+            <div class="channel-settings-heading">
+                <div><strong>Parámetros del canal</strong><span>Los secretos existentes no se muestran.</span></div>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="validateChannelForm()"><i class="fa-solid fa-shield-halved"></i> Validar</button>
             </div>
+            <div id="channel-definition-editor">${renderChannelDefinitions(definitions, currentSettings)}</div>
         </form>
     `;
-    showModal('Nuevo Canal de Notificación', html, true, async () => {
-        const payload = {
-            name: document.getElementById('c-name').value,
-            type: parseInt(document.getElementById('c-type').value),
-            configJson: document.getElementById('c-config').value,
-            isActive: true
-        };
-        await fetch('/api/channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        closeModal();
-        loadChannelsCards();
-    });
+    showModal(channelId ? 'Editar Canal de Notificación' : 'Nuevo Canal de Notificación', html, true, () => saveChannel(channelId));
+}
+
+function renderChannelDefinitions(definitions, currentSettings = {}) {
+    if (!definitions.length) return '<div class="empty-state">Este tipo todavía no tiene parámetros definidos.</div>';
+    return definitions.map(definition => {
+        const setting = currentSettings[definition.code];
+        const value = setting?.value ?? definition.defaultValue ?? '';
+        const required = definition.isRequired ? 'required' : '';
+        if (definition.isSensitive) {
+            return `<div class="channel-setting-row sensitive-setting">
+                <div><label>${escapeHtml(definition.name)} ${definition.isRequired ? '*' : ''}</label><small>${escapeHtml(definition.code)} · Secreto cifrado</small></div>
+                <div class="secret-control"><input type="password" class="form-control channel-setting-input" data-code="${escapeHtml(definition.code)}" data-type="${escapeHtml(definition.dataType)}" placeholder="${setting?.isConfigured ? 'Configurado · dejar vacío para conservar' : 'Introducir secreto'}"><label class="checkbox-label"><input type="checkbox" data-delete-code="${escapeHtml(definition.code)}"> Eliminar</label></div>
+            </div>`;
+        }
+        return `<div class="channel-setting-row"><div><label>${escapeHtml(definition.name)} ${definition.isRequired ? '*' : ''}</label><small>${escapeHtml(definition.code)} · ${escapeHtml(definition.dataType)}</small></div>${channelInput(definition, value, required)}</div>`;
+    }).join('');
+}
+
+function channelInput(definition, value, required) {
+    const code = escapeHtml(definition.code);
+    const type = escapeHtml(definition.dataType);
+    if (definition.dataType === 'BOOL') return `<label class="toggle-control"><input type="checkbox" class="channel-setting-input" data-code="${code}" data-type="${type}" ${value === true || value === 'true' ? 'checked' : ''}><span>Activado</span></label>`;
+    const inputType = definition.dataType === 'INT' || definition.dataType === 'DECIMAL' ? 'number' : 'text';
+    return `<input type="${inputType}" class="form-control channel-setting-input" data-code="${code}" data-type="${type}" value="${escapeHtml(value)}" ${required}>`;
+}
+
+async function loadChannelDefinitionEditor() {
+    const typeId = document.getElementById('c-type').value;
+    const definitions = await (await fetch(`/api/channels/types/${typeId}/definitions`)).json();
+    document.getElementById('channel-definition-editor').innerHTML = renderChannelDefinitions(definitions);
+}
+
+async function saveChannel(channelId) {
+    const typeId = parseInt(document.getElementById('c-type').value);
+    const type = channelEnumForType(typeId);
+    const payload = { name: document.getElementById('c-name').value, channelTypeId: typeId, type, isActive: true };
+    const response = await fetch(channelId ? `/api/channels/${channelId}` : '/api/channels', { method: channelId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!response.ok) { alert(await response.text()); return; }
+    const saved = await response.json();
+    const targetId = channelId || saved.id;
+    for (const input of document.querySelectorAll('.channel-setting-input')) {
+        const code = input.dataset.code;
+        const deleteInput = document.querySelector(`[data-delete-code="${code}"]`);
+        if (deleteInput?.checked) {
+            await fetch(`/api/channels/${targetId}/settings/${encodeURIComponent(code)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ delete: true }) });
+            continue;
+        }
+        if (input.type === 'password' && !input.value) continue;
+        const value = input.type === 'checkbox' ? input.checked : input.value;
+        if (value === '') continue;
+        await fetch(`/api/channels/${targetId}/settings/${encodeURIComponent(code)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value }) });
+    }
+    closeModal();
+    loadChannelsCards();
+}
+
+async function validateChannelForm() {
+    const id = currentChannelModalId;
+    if (!id) { alert('Guarda el canal antes de ejecutar la validación completa.'); return; }
+    const result = await (await fetch(`/api/channels/${id}/validate`, { method: 'POST' })).json();
+    alert(result.valid ? 'La configuración es válida.' : result.errors.join('\n'));
+}
+
+function getChannelTypeName(type, channelTypeId) {
+    if (channelTypeId === 1 || type === 1) return 'EMAIL';
+    if (channelTypeId === 2 || type === 3) return 'SMS';
+    if (channelTypeId === 3 || type === 2) return 'WEBHOOK';
+    return 'CANAL';
+}
+
+function channelEnumForType(channelTypeId) {
+    if (channelTypeId === 1) return 1;
+    if (channelTypeId === 2) return 3;
+    if (channelTypeId === 3) return 2;
+    return 1;
 }
 
 async function testChannelModal(id) {

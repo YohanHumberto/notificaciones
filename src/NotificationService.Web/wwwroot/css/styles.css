@@ -437,6 +437,92 @@ body.dark-theme {
 .item-card-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+.channel-card-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.channel-card-meta i {
+    margin-right: 5px;
+}
+
+.text-success { color: var(--accent-green); }
+.text-muted { color: var(--text-muted); }
+
+.channel-settings-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.channel-settings-heading strong,
+.channel-settings-heading span {
+    display: block;
+}
+
+.channel-settings-heading span,
+.channel-setting-row small {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.channel-setting-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.2fr);
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.channel-setting-row label {
+    display: block;
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.channel-setting-row small {
+    display: block;
+    margin-top: 3px;
+}
+
+.secret-control {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.checkbox-label,
+.toggle-control {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    color: var(--text-muted) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+}
+
+.checkbox-label input,
+.toggle-control input {
+    accent-color: var(--primary);
+}
+
+.empty-state {
+    padding: 20px 0;
+    color: var(--text-muted);
+    font-size: 13px;
 }
 
 /* Modals */
