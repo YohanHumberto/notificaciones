@@ -10,12 +10,12 @@ using NotificationService.Infrastructure.DataConnectors;
 using NotificationService.Infrastructure.Evaluators;
 using NotificationService.Infrastructure.Jobs;
 using NotificationService.Infrastructure.PostActions;
+using NotificationService.Infrastructure.Security;
 using NotificationService.Infrastructure.Templates;
 using Quartz;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add EF Core DbContext with SQLite (with easy path to SQL Server)
 builder.Services.AddDbContext<NotificationDbContext>(options =>
 {
     options.UseSqlite("Data Source=notification_service.db");
@@ -23,7 +23,9 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
 
 builder.Services.AddHttpClient();
 
-// Register Core Domain & Infrastructure Services
+builder.Services.AddSingleton<ISecretProtector, AesSecretProtector>();
+builder.Services.AddScoped<INotificationChannelConfigurationService, NotificationChannelConfigurationService>();
+
 builder.Services.AddSingleton<ITemplateRenderer, FluidTemplateRenderer>();
 builder.Services.AddScoped<IDataSourceService, DataSourceService>();
 builder.Services.AddScoped<IConditionEvaluator, ConditionEvaluator>();
@@ -31,7 +33,6 @@ builder.Services.AddScoped<IPostExecutionProcessor, PostExecutionProcessor>();
 builder.Services.AddScoped<INotificationJobProcessor, NotificationJobProcessor>();
 builder.Services.AddScoped<ISchedulerService, QuartzSchedulerService>();
 
-// Register Channel Providers
 builder.Services.AddScoped<INotificationChannelProvider, EmailChannelProvider>();
 builder.Services.AddScoped<INotificationChannelProvider, WebhookChannelProvider>();
 
@@ -51,7 +52,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await db.Database.MigrateAsync();
 
     // Sync any pre-existing active jobs with Quartz.NET scheduler
     var schedulerService = scope.ServiceProvider.GetRequiredService<ISchedulerService>();

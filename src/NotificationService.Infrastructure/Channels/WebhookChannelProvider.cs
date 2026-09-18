@@ -12,10 +12,12 @@ namespace NotificationService.Infrastructure.Channels;
 public class WebhookChannelProvider : INotificationChannelProvider
 {
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly INotificationChannelConfigurationService _configurationService;
 
-    public WebhookChannelProvider(IHttpClientFactory httpClientFactory)
+    public WebhookChannelProvider(IHttpClientFactory httpClientFactory, INotificationChannelConfigurationService configurationService)
     {
         _httpClientFactory = httpClientFactory;
+        _configurationService = configurationService;
     }
 
     public ChannelType ChannelType => ChannelType.Webhook;
@@ -24,29 +26,25 @@ public class WebhookChannelProvider : INotificationChannelProvider
     {
         try
         {
-            using var doc = JsonDocument.Parse(channelConfig.ConfigJson);
-            var root = doc.RootElement;
+            var urlSetting = await _configurationService.GetSettingValueAsync(channelConfig.Id, "URL");
+            var methodSetting = await _configurationService.GetSettingValueAsync(channelConfig.Id, "HTTP_METHOD");
+            var tokenSetting = await _configurationService.GetSecretAsync(channelConfig.Id, "AUTH_TOKEN");
 
             string targetUrl = !string.IsNullOrWhiteSpace(recipient)
                 ? recipient
-                : (root.TryGetProperty("Url", out var u) ? u.GetString() ?? "" : "");
+                : (urlSetting?.Value?.ToString() ?? string.Empty);
 
             if (string.IsNullOrWhiteSpace(targetUrl))
                 return (false, "No se especificó la URL de destino del Webhook.");
 
-            string httpMethod = root.TryGetProperty("HttpMethod", out var m) ? m.GetString() ?? "POST" : "POST";
+            string httpMethod = methodSetting?.Value?.ToString() ?? "POST";
 
             var client = _httpClientFactory.CreateClient();
-
-            if (root.TryGetProperty("Headers", out var headers) && headers.ValueKind == JsonValueKind.Object)
+            if (!string.IsNullOrWhiteSpace(tokenSetting))
             {
-                foreach (var prop in headers.EnumerateObject())
-                {
-                    client.DefaultRequestHeaders.TryAddWithoutValidation(prop.Name, prop.Value.GetString());
-                }
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", tokenSetting);
             }
 
-            // Create payload JSON
             string jsonPayload = body;
             if (!IsJson(body))
             {

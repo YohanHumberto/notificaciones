@@ -26,6 +26,16 @@ public interface INotificationChannelProvider
     Task<(bool Success, string Message)> SendNotificationAsync(NotificationChannel channelConfig, string recipient, string subject, string body);
 }
 
+public interface INotificationChannelConfigurationService
+{
+    Task<IReadOnlyList<NotificationChannelSettingValue>> GetSettingsAsync(int channelId);
+    Task<NotificationChannelSettingValue?> GetSettingValueAsync(int channelId, string code);
+    Task<string?> GetSecretAsync(int channelId, string code);
+    Task<IReadOnlyList<string>> ValidateAsync(int channelId);
+    Task SaveSettingAsync(int channelId, string code, object? value, bool isExplicitDelete = false);
+    Task DeleteSettingAsync(int channelId, string code);
+}
+
 public interface IPostExecutionProcessor
 {
     Task<string> ExecuteActionAsync(PostExecutionAction action, List<Dictionary<string, object?>> contextData);

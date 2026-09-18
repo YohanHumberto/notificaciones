@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading.Tasks;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -12,6 +11,13 @@ namespace NotificationService.Infrastructure.Channels;
 
 public class EmailChannelProvider : INotificationChannelProvider
 {
+    private readonly INotificationChannelConfigurationService _configurationService;
+
+    public EmailChannelProvider(INotificationChannelConfigurationService configurationService)
+    {
+        _configurationService = configurationService;
+    }
+
     public ChannelType ChannelType => ChannelType.Email;
 
     public async Task<(bool Success, string Message)> SendNotificationAsync(NotificationChannel channelConfig, string recipient, string subject, string body)
@@ -21,28 +27,29 @@ public class EmailChannelProvider : INotificationChannelProvider
             if (string.IsNullOrWhiteSpace(recipient))
                 return (false, "El destinatario de correo electrónico está vacío.");
 
-            using var doc = JsonDocument.Parse(channelConfig.ConfigJson);
-            var root = doc.RootElement;
+            var host = await _configurationService.GetSettingValueAsync(channelConfig.Id, "SMTP_HOST");
+            var port = await _configurationService.GetSettingValueAsync(channelConfig.Id, "SMTP_PORT");
+            var username = await _configurationService.GetSettingValueAsync(channelConfig.Id, "SMTP_USERNAME");
+            var password = await _configurationService.GetSecretAsync(channelConfig.Id, "SMTP_PASSWORD");
+            var fromAddress = await _configurationService.GetSettingValueAsync(channelConfig.Id, "FROM_ADDRESS");
+            var useSsl = await _configurationService.GetSettingValueAsync(channelConfig.Id, "USE_SSL");
 
-            string host = root.TryGetProperty("Host", out var h) ? h.GetString() ?? "localhost" : "localhost";
-            int port = root.TryGetProperty("Port", out var p) ? p.GetInt32() : 587;
-            string username = root.TryGetProperty("Username", out var u) ? u.GetString() ?? "" : "";
-            string password = root.TryGetProperty("Password", out var pwd) ? pwd.GetString() ?? "" : "";
-            string fromAddress = root.TryGetProperty("FromAddress", out var fa) ? fa.GetString() ?? "no-reply@localhost" : "no-reply@localhost";
-            string fromName = root.TryGetProperty("FromName", out var fn) ? fn.GetString() ?? "Sistema Notificaciones" : "Sistema Notificaciones";
-            bool enableSsl = !root.TryGetProperty("EnableSsl", out var ssl) || ssl.GetBoolean();
-            int timeout = root.TryGetProperty("Timeout", out var t) ? t.GetInt32() : 10000;
+            string smtpHost = host?.Value?.ToString() ?? "localhost";
+            int smtpPort = port?.Value is int p ? p : 587;
+            string smtpUsername = username?.Value?.ToString() ?? string.Empty;
+            string smtpPassword = password ?? string.Empty;
+            string from = fromAddress?.Value?.ToString() ?? "no-reply@localhost";
+            bool enableSsl = useSsl?.Value is bool ssl ? ssl : true;
 
-            // Perform SMTP send if configured, or simulate send for demo/local testing
-            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(password) || password == "demo123")
+            if (smtpHost.Equals("localhost", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(smtpPassword) || smtpPassword == "demo123")
             {
-                return (true, $"Simulación de Email a {recipient} enviada con éxito. Servidor: {host}:{port}");
+                return (true, $"Simulación de Email a {recipient} enviada con éxito. Servidor: {smtpHost}:{smtpPort}");
             }
 
             using var client = new MailKit.Net.Smtp.SmtpClient();
-            client.Timeout = timeout;
+            client.Timeout = 10000;
 
-            var socketOptions = port switch
+            var socketOptions = smtpPort switch
             {
                 465 => SecureSocketOptions.SslOnConnect,
                 587 => SecureSocketOptions.StartTls,
@@ -50,16 +57,16 @@ public class EmailChannelProvider : INotificationChannelProvider
                 _ => enableSsl ? SecureSocketOptions.StartTlsWhenAvailable : SecureSocketOptions.None
             };
 
-            await client.ConnectAsync(host, port, socketOptions);
+            await client.ConnectAsync(smtpHost, smtpPort, socketOptions);
 
-            if (!string.IsNullOrWhiteSpace(username))
+            if (!string.IsNullOrWhiteSpace(smtpUsername))
             {
                 client.AuthenticationMechanisms.Remove("XOAUTH2");
-                await client.AuthenticateAsync(username.Trim(), password.Trim());
+                await client.AuthenticateAsync(smtpUsername.Trim(), smtpPassword.Trim());
             }
 
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress(fromName, fromAddress));
+            message.From.Add(new MailboxAddress("Sistema Notificaciones", from));
             foreach (var email in recipient.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 message.To.Add(MailboxAddress.Parse(email.Trim()));
@@ -75,10 +82,6 @@ public class EmailChannelProvider : INotificationChannelProvider
         }
         catch (Exception ex)
         {
-            if (ex.Message.Contains("4.5.1") || ex.Message.Contains("blacklisted", StringComparison.OrdinalIgnoreCase))
-            {
-                return (false, "SocketLabs ha aplicado un bloqueo de protección temporal (Rate Limit / Blacklist de 5-15 min) a tu IP por los intentos fallidos de autenticación previos. Por favor aguarda unos minutos e intenta nuevamente con tu Server ID y Secret Key correctos.");
-            }
             return (false, $"Error al enviar correo electrónico: {ex.Message}");
         }
     }
