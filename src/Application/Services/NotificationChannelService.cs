@@ -39,7 +39,7 @@ namespace Application.Services
 			var types = (await channelTypeService.ListAll<ChannelTypeResponse>(new Domain.Common.Querying.PageRequest()
 			{
 				SortOrder = [new SortRequest() { Direction = SortDirection.Asc, Field = "Name" }],
-				Filters = [new Domain.Common.Querying.Filter() { Field = "", Operator = FilterOperations.Equals, Value = "True" }]
+				Filters = [new Domain.Common.Querying.Filter() { Field = "Enabled", Operator = FilterOperations.Equals, Value = "True" }]
 			})).Value.ToList();
 
 			return types;

@@ -9,5 +9,9 @@
 	<ItemGroup>
 		<PackageReference Include="CodeSquad.Common.Structures" Version="2.2.9" />
 	</ItemGroup>
+	
+	<ItemGroup>
+	  <ProjectReference Include="..\Persistence\Persistence.csproj" />
+	</ItemGroup>
 
 </Project>

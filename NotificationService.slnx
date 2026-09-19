@@ -1,5 +1,8 @@
 <Solution>
   <Project Path="src/Application/Application.csproj" />
+  <Project Path="src/BlazorApp1/BlazorApp1.csproj" Id="10f9d2cd-83b3-4db2-9e08-776d17140973" />
+  <Project Path="src/BlazorApp2/BlazorApp2.csproj" Id="a86a6d90-09c9-412b-9f2d-03d347d87452" />
+  <Project Path="src/BlazorApp3/BlazorApp3.csproj" Id="285b4536-cb60-479a-9bea-727b63cf8019" />
   <Project Path="src/Domain/Domain.csproj" />
   <Project Path="src/NotificationService.Web/NotificationService.csproj" />
   <Project Path="src/Persistence/Persistence.csproj" />

@@ -1,22 +1,24 @@
 ﻿using AutoMapper;
+using Domain.Contracts.Requests;
+using Persistence.Entities;
 
-namespace NotificationService.Web.MapperProfiles
+namespace NotificationService.MapperProfiles
 {
 	/// <summary>
 	///     Avm DB Model to Contracts mapper Profile
 	/// </summary>
-	public class AvmMapperProfile : Profile
+	public class MapperProfile : Profile
 	{
 		/// <summary>
 		///     Avm DB Model to Contracts mapper Profile
 		/// </summary>
-		public AvmMapperProfile()
+		public MapperProfile()
 		{
 			SourceMemberNamingConvention = new LowerUnderscoreNamingConvention();
 			DestinationMemberNamingConvention = new PascalCaseNamingConvention();
 
 			CreateMap<string, DateTime>().ConvertUsing<DateTimeTypeConverter>();
-			//CreateMap<ExternalApplications, ExternalApplicationsCreateRequest>().ReverseMap();
+			CreateMap<NotificationChannelType, ChannelTypeResponse>().ReverseMap();
 
 			//ConditionalRule
 			//DataSourceConfig
