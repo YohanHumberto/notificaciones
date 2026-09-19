@@ -1,7 +1,8 @@
 <Solution>
-  <Folder Name="/src/">
-    <Project Path="src/NotificationService.Core/NotificationService.Core.csproj" />
-    <Project Path="src/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
-    <Project Path="src/NotificationService.Web/NotificationService.Web.csproj" />
-  </Folder>
+  <Project Path="src/Application/Application.csproj" />
+  <Project Path="src/Domain/Domain.csproj" />
+  <Project Path="src/NotificationService.Web/NotificationService.csproj" />
+  <Project Path="src/Persistence/Persistence.csproj" />
+  <Project Path="src/Repository/Repository.csproj" />
+  <Project Path="src/Tests/Tests.csproj" />
 </Solution>
